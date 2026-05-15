@@ -19,8 +19,8 @@ def get_stats():
     # count total patients — just the length of the list
     total_patients = len(patients)
 
-    # filter appointments to only today's
-    todays = [a for a in appointments if a["date"] == today]
+    # count how many appointments are completed
+    completed = [a for a in appointments if a["status"] == "Completed"]
 
     # count how many of today's are completed
     upcoming_count = len([
@@ -31,7 +31,7 @@ def get_stats():
 
     return {
         "total_patients":       total_patients,
-        "todays_appointments":  len(todays),
+        "completed_appointments":  len(completed),
         "upcoming_appointments":upcoming_count,
     }
 
@@ -55,7 +55,7 @@ def get_upcoming_appointments():
 # DASHBOARD
 # ================================================================
 
-st.title("🏥 CliniC")
+st.title("Clinic Dashboard")
 st.caption(f"Today is {datetime.date.today().strftime('%A, %d %B %Y')}")
 st.divider()
 
@@ -64,7 +64,7 @@ upcoming = get_upcoming_appointments()
 
 col1, col2, col3 = st.columns(3)
 col1.metric("Total Patients",        stats["total_patients"])
-col2.metric("Today's Appointments",  stats["todays_appointments"])
+col2.metric("Completed Appointments", stats["completed_appointments"])
 col3.metric("Upcoming Appointments", stats["upcoming_appointments"])
 
 st.divider()

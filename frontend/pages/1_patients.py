@@ -1,14 +1,12 @@
 import streamlit as st
 import pandas as pd
-from api import get_patients, create_patient, update_patient, delete_patient
+from api import get_patients, create_patient, update_patient, delete_patient, get_appointments, delete_appointment
 
 st.title("Patients")
 st.divider()
 
 # SEARCH BAR
 # st.text_input returns whatever the user has typed
-
-
 search = st.text_input("Search patient:", placeholder="Name")
 
 # ================================================================
@@ -114,17 +112,12 @@ else:
             c4.write(patient["phone"])
 
             # DELETE BUTTON
-            # each button needs a unique key — we use patient id
-            # without unique keys streamlit gets confused when
-            # multiple buttons with the same label exist on the page
+            # first click stores the patient id in session_state
+            # this triggers the confirmation block below
+            # actual deletion only happens after user confirms
             if c5.button("Delete", key=f"del_{patient['id']}"):
-                # calls DELETE /patients/{id} via api.py
-                response = delete_patient(patient["id"])
-                if response.status_code == 200:
-                    st.success("Patient deleted.")
-                    st.rerun()  # refresh table to remove deleted patient
-                else:
-                    st.error("Could not delete patient.")
+                st.session_state.delete_id = patient["id"]
+                st.session_state.delete_name = patient["name"]
 
             # EDIT BUTTON
             # doesn't delete or save anything immediately
@@ -132,6 +125,56 @@ else:
             # which triggers the edit form to appear below
             if c5.button("Edit", key=f"edit_{patient['id']}"):
                 st.session_state.editing_id = patient["id"]
+
+        # ================================================================
+        # DELETE CONFIRMATION
+        # renders outside the column block but still inside the for loop
+        # so it appears under the correct patient card
+        # session_state.delete_id tells us which patient is pending deletion
+        # ================================================================
+
+        if st.session_state.get("delete_id") == patient["id"]:
+
+            # fetch all appointments and filter to this patient's
+            all_appointments = get_appointments()
+            patient_appointments = [
+                a for a in all_appointments if a["patient_id"] == patient["id"]
+            ]
+
+            if patient_appointments:
+                # patient has appointments — warn the user before deleting
+                st.warning(
+                    f"WARNING! **{patient['name']}** has **{len(patient_appointments)}** appointment(s). "
+                    f"Deleting will also remove all their appointments. Are you sure?"
+                )
+                col_yes, col_no = st.columns(2)
+
+                if col_yes.button("Yes, delete", key=f"confirm_del_{patient['id']}"):
+                    # delete appointments first so foreign key constraint isn't violated
+                    # then delete the patient
+                    for appt in patient_appointments:
+                        delete_appointment(appt["id"])
+                    response = delete_patient(patient["id"])
+                    if response.status_code == 200:
+                        del st.session_state.delete_id
+                        del st.session_state.delete_name
+                        st.success("Patient and their appointments deleted.")
+                        st.rerun()
+
+                if col_no.button("Cancel", key=f"cancel_del_{patient['id']}"):
+                    # user changed their mind — clear the pending delete
+                    del st.session_state.delete_id
+                    del st.session_state.delete_name
+                    st.rerun()
+
+            else:
+                # no appointments — safe to delete straight away
+                response = delete_patient(patient["id"])
+                if response.status_code == 200:
+                    del st.session_state.delete_id
+                    del st.session_state.delete_name
+                    st.success("Patient deleted.")
+                    st.rerun()
 
 # ================================================================
 # EDIT FORM
@@ -206,8 +249,11 @@ if "editing_id" in st.session_state:
                 del st.session_state.editing_id
                 st.rerun()
 
+# ================================================================
 # CSV EXPORT
 # converts the patient list to a CSV file
+# st.download_button lets the user download it directly from the browser
+# ================================================================
 
 st.divider()
 st.subheader("Export Patients")
@@ -218,9 +264,12 @@ patients_for_export = get_patients()
 if not patients_for_export:
     st.info("No patients to export.")
 else:
-    
+    # convert list of dictionaries to a pandas dataframe
+    # each dictionary becomes a row, keys become column headers
     df = pd.DataFrame(patients_for_export)
 
+    # convert dataframe to CSV string
+    # index=False means don't include the row numbers in the export
     csv = df.to_csv(index=False)
 
     # st.download_button renders a button that triggers a file download

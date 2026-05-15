@@ -50,7 +50,7 @@ def update_patient(patient_id: int, patient: schemas.PatientUpdate, db: Session 
         raise HTTPException(status_code=404, detail="Patient not found")
     # exclude_unset means only update fields the user actually sent
     # so if they only send name, age/gender/phone stay unchanged
-    update_data = appointment.model_dump(exclude_unset=True, exclude_none=True)
+    update_data = patient.model_dump(exclude_unset=True, exclude_none=True)
     
     for key, value in patient.model_dump(exclude_unset=True).items():
         setattr(db_patient, key, value)
