@@ -1,28 +1,123 @@
+from fastapi import FastAPI, Depends, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy.orm import Session
+from typing import List
+import models, schemas
+from database import engine, get_db
 
-from fastapi import FastAPI
-from pydantic import BaseModel
+# creates all tables in the database if they don't exist yet
+models.Base.metadata.create_all(bind=engine)
 
-app = FastAPI()
+app = FastAPI(title="CliniC API")
 
-class Item(BaseModel):
-    text: str = None
-    completed: bool = False
+# CORS allows your streamlit frontend to call this API
+# without this the browser blocks the requests
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # in production you'd restrict this to your frontend url
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
-items = []
+# PATIENT ROUTES
 
-@app.get("/")
-def read_root():
-    return "Hello, World"
-
-@app.post("/items", response_model= list[Item])
-def create_item(item: str):
-    items.append(item)
-    return item
-
-@app.get("/items/{item_id}", response_model= Item) 
-def get_item(item_id: int) -> Item:
-    if item_id < len(items):
-        return items[item_id]
-    else:
-        raise HTTPException(statuscode=404,details=f("item {item_id} not found"))
+@app.get("/patients", response_model=List[schemas.PatientResponse])
+def get_patients(search: str = None, db: Session = Depends(get_db)):
     
+    if search:
+        # ilike is case insensitive LIKE — finds partial name matches
+        return db.query(models.Patient).filter(
+            models.Patient.name.ilike(f"%{search}%")
+        ).all()
+    return db.query(models.Patient).all()
+
+
+@app.post("/patients", response_model=schemas.PatientResponse)
+def create_patient(patient: schemas.PatientCreate, db: Session = Depends(get_db)):
+    # convert pydantic schema to sqlalchemy model
+    db_patient = models.Patient(**patient.model_dump())
+    db.add(db_patient)
+    db.commit()
+    # refresh pulls the new id and created_at back from the database
+    db.refresh(db_patient)
+    return db_patient
+
+
+@app.put("/patients/{patient_id}", response_model=schemas.PatientResponse)
+def update_patient(patient_id: int, patient: schemas.PatientUpdate, db: Session = Depends(get_db)):
+    db_patient = db.query(models.Patient).filter(models.Patient.id == patient_id).first()
+    if not db_patient:
+        raise HTTPException(status_code=404, detail="Patient not found")
+    # exclude_unset means only update fields the user actually sent
+    # so if they only send name, age/gender/phone stay unchanged
+    update_data = appointment.model_dump(exclude_unset=True, exclude_none=True)
+    
+    for key, value in patient.model_dump(exclude_unset=True).items():
+        setattr(db_patient, key, value)
+    db.commit()
+    db.refresh(db_patient)
+    return db_patient
+
+
+@app.delete("/patients/{patient_id}")
+def delete_patient(patient_id: int, db: Session = Depends(get_db)):
+    db_patient = db.query(models.Patient).filter(models.Patient.id == patient_id).first()
+    if not db_patient:
+        raise HTTPException(status_code=404, detail="Patient not found")
+    db.delete(db_patient)
+    db.commit()
+    return {"message": f"Patient {patient_id} deleted successfully"}
+
+# APPOINTMENT ROUTES
+
+@app.get("/appointments", response_model=List[schemas.AppointmentResponse])
+def get_appointments(date: str = None, status: str = None, db: Session = Depends(get_db)):
+    query = db.query(models.Appointment)
+    if date:
+        query = query.filter(models.Appointment.date == date)
+    if status:
+        query = query.filter(models.Appointment.status == status)
+    return query.all()
+
+
+@app.post("/appointments", response_model=schemas.AppointmentResponse)
+def create_appointment(appointment: schemas.AppointmentCreate, db: Session = Depends(get_db)):
+    # check the patient actually exists before creating the appointment
+    patient = db.query(models.Patient).filter(
+        models.Patient.id == appointment.patient_id
+    ).first()
+    if not patient:
+        raise HTTPException(status_code=404, detail="Patient not found")
+    db_appointment = models.Appointment(**appointment.model_dump())
+    db.add(db_appointment)
+    db.commit()
+    db.refresh(db_appointment)
+    return db_appointment
+
+
+@app.put("/appointments/{appointment_id}", response_model=schemas.AppointmentResponse)
+def update_appointment(appointment_id: int, appointment: schemas.AppointmentUpdate, db: Session = Depends(get_db)):
+    db_appointment = db.query(models.Appointment).filter(
+        models.Appointment.id == appointment_id
+    ).first()
+    if not db_appointment:
+        raise HTTPException(status_code=404, detail="Appointment not found")
+    
+    update_date = appointment.model_dump(exclude_unset=True, exclude_none=True)
+    for key, value in appointment.model_dump(exclude_unset=True).items():
+        setattr(db_appointment, key, value)
+    db.commit()
+    db.refresh(db_appointment)
+    return db_appointment
+
+
+@app.delete("/appointments/{appointment_id}")
+def delete_appointment(appointment_id: int, db: Session = Depends(get_db)):
+    db_appointment = db.query(models.Appointment).filter(
+        models.Appointment.id == appointment_id
+    ).first()
+    if not db_appointment:
+        raise HTTPException(status_code=404, detail="Appointment not found")
+    db.delete(db_appointment)
+    db.commit()
+    return {"message": f"Appointment {appointment_id} deleted successfully"}
