@@ -13,7 +13,7 @@ A simple clinic management system built with FastAPI and Streamlit.
 - Git + GitHub
 
 ## Project Structure
-
+```
 clinic/
 ├── backend/
 │   ├── main.py         # FastAPI app and routes
@@ -29,7 +29,7 @@ clinic/
 │       └── 2_Appointments.py
 ├── requirements.txt
 └── README.md
-
+```
 ## Features
 
 - **Patient Management** — add, view, search, edit, delete
