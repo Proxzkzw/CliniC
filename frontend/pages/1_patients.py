@@ -50,6 +50,10 @@ with st.expander("Add New Patient"):
                 st.error("Name is required.")
             elif not phone:
                 st.error("Phone number is required.")
+            elif not phone.isdigit():
+                st.error("Phone no. can only contain numbers")
+            elif len(phone)!=10:
+                st.error("Phone no. should have 10 digits")
             elif not age_input:
                 st.error("Age is required.")
             elif not age_input.isdigit():
@@ -72,7 +76,11 @@ with st.expander("Add New Patient"):
                     # and shows the newly added patient immediately
                     st.rerun()
                 else:
-                    st.error("Something went wrong. Try again.")
+                    try:
+                        error_msg = response.json().get("detail", f"Error: {response.text}")
+                    except Exception as e:
+                        error_msg = f"Failed to parse error: {e}. Response: {response.text}"
+                    st.error(error_msg)
 
 # ================================================================
 # PATIENT TABLE
@@ -226,14 +234,21 @@ if "editing_id" in st.session_state:
             cancel = col6.form_submit_button("Cancel")
 
             if save:
-                # calls PUT /patients/{id} with the updated fields
-                response = update_patient(st.session_state.editing_id, {
-                    "name": name,
-                    "age": age,
-                    "gender": gender,
-                    "phone": phone,
-                    "symptoms": symptoms,
-                })
+                if not phone:
+                    st.error("Phone number is required.")
+                elif not phone.isdigit():
+                    st.error("Phone no. can only contain numbers")
+                elif len(phone) != 10:
+                    st.error("Phone no. should have exactly 10 digits")
+                else:
+                    # calls PUT /patients/{id} with the updated fields
+                    response = update_patient(st.session_state.editing_id, {
+                        "name": name,
+                        "age": age,
+                        "gender": gender,
+                        "phone": phone,
+                        "symptoms": symptoms,
+                    })
                 if response.status_code == 200:
                     # remove editing_id from session_state
                     # this makes the edit form disappear
@@ -241,7 +256,11 @@ if "editing_id" in st.session_state:
                     st.success("Patient updated successfully!")
                     st.rerun()
                 else:
-                    st.error("Could not update patient.")
+                    try:
+                        error_msg = response.json().get("detail", f"Error: {response.text}")
+                    except Exception as e:
+                        error_msg = f"Failed to parse error: {e}. Response: {response.text}"
+                    st.error(error_msg)
 
             if cancel:
                 # discard changes — just clear the editing state

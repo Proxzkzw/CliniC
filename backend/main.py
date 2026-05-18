@@ -34,6 +34,11 @@ def get_patients(search: str = None, db: Session = Depends(get_db)):
 
 @app.post("/patients", response_model=schemas.PatientResponse)
 def create_patient(patient: schemas.PatientCreate, db: Session = Depends(get_db)):
+    # check for duplicate patient by phone number
+    existing_patient = db.query(models.Patient).filter(models.Patient.phone == patient.phone).first()
+    if existing_patient:
+        raise HTTPException(status_code=400, detail="ERROR: another patient already exists with this phone number.")
+
     # convert pydantic schema to sqlalchemy model
     db_patient = models.Patient(**patient.model_dump())
     db.add(db_patient)
@@ -48,6 +53,15 @@ def update_patient(patient_id: int, patient: schemas.PatientUpdate, db: Session 
     db_patient = db.query(models.Patient).filter(models.Patient.id == patient_id).first()
     if not db_patient:
         raise HTTPException(status_code=404, detail="Patient not found")
+        
+    if patient.phone:
+        existing_patient = db.query(models.Patient).filter(
+            models.Patient.phone == patient.phone, 
+            models.Patient.id != patient_id
+        ).first()
+        if existing_patient:
+            raise HTTPException(status_code=400, detail="ERROR: another patient already exists with this phone number.")
+
     # exclude_unset means only update fields the user actually sent
     # so if they only send name, age/gender/phone stay unchanged
     update_data = patient.model_dump(exclude_unset=True, exclude_none=True)

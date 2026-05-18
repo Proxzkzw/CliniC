@@ -60,5 +60,7 @@ class AppointmentResponse(BaseModel):
     status:     str
     created_at: datetime
 
+    
+
     class Config:
         from_attributes = True

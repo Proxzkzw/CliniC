@@ -21,10 +21,11 @@ with st.expander("Add New Appointment"):
         # calls GET /patients via api.py
         patients = get_patients()
 
-        # build a dictionary of name -> id
-        # e.g. {"Aisha Nair": 1, "Rohan Das": 2}
-        # we show the name in the dropdown but send the id to the backend
-        patient_options = {p["name"]: p["id"] for p in patients}
+        # Format the label nicely and handle 'None' symptoms
+        patient_options = {
+            f"{p['name']} • {p['phone']}" + (f" ({p['symptoms']})" if p.get("symptoms") else ""): p["id"] 
+            for p in patients
+        }
 
         if not patient_options:
             # if no patients exist yet, warn the user
@@ -123,7 +124,7 @@ else:
         with st.container(border=True):
 
             # 6 columns: patient, doctor, date, time, status, actions
-            c1, c2, c3, c4, c5, c6 = st.columns([2, 2, 1, 1, 1, 2])
+            c1, c2, c3, c4, c5, c6 = st.columns([2, 2, 1, 1, 2, 2])
 
             # look up patient name using their id
             # .get() with "Unknown" default in case patient was deleted
