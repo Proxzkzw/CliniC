@@ -37,7 +37,7 @@ with st.expander("Add New Patient"):
         phone    = col4.text_input("Phone Number")
 
         # text_area is multi-line — better for symptoms which can be long
-        symptoms = st.text_area("Symptoms", placeholder=" ")
+        symptoms = st.text_area("Symptoms", placeholder="Enter symptoms here ")
 
         # form_submit_button triggers the rerun only when clicked
         # returns True when clicked, False otherwise
