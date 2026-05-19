@@ -42,6 +42,8 @@ with st.expander("Add New Appointment"):
 
         col3, col4 = st.columns(2)
 
+        symptoms = st.text_area("Symptoms", placeholder="Enter symptoms here ")
+
         # date_input renders a calendar picker
         # defaults to today's date
         date = col3.date_input("Date", value=datetime.date.today())
@@ -69,6 +71,7 @@ with st.expander("Add New Appointment"):
                     # convert date object to string — backend expects "2025-05-15"
                     "date": str(date),
                     "time": time,
+                    "symptoms": symptoms,
                     # always starts as Scheduled — user marks complete later
                     "status": "Scheduled",
                 })
@@ -76,7 +79,11 @@ with st.expander("Add New Appointment"):
                     st.success(f"Appointment added for {patient_name}!")
                     st.rerun()
                 else:
-                    st.error("Something went wrong. Try again.")
+                    try:
+                        error_msg = response.json().get("detail", f"Error: {response.text}")
+                    except Exception as e:
+                        error_msg = f"Failed to parse error: {e}. Response: {response.text}"
+                    st.error(error_msg)
 
 # ================================================================
 # FILTER BAR
@@ -129,6 +136,8 @@ else:
             # look up patient name using their id
             # .get() with "Unknown" default in case patient was deleted
             c1.write(f"**{patient_map.get(appt['patient_id'], 'Unknown')}**")
+            if appt.get("symptoms"):
+                c1.caption(appt.get("symptoms"))
             c2.write(appt["doctor"])
 
             # date comes back as a string from the backend e.g. "2025-05-15"
@@ -158,6 +167,10 @@ else:
                     else:
                         st.error("Could not update appointment.")
 
+            # EDIT BUTTON
+            if c6.button("Edit", key=f"edit_{appt['id']}"):
+                st.session_state.editing_appt_id = appt["id"]
+
             # DELETE BUTTON
             # always visible regardless of status
             # unique key uses appointment id to avoid conflicts
@@ -169,3 +182,73 @@ else:
                     st.rerun()
                 else:
                     st.error("Could not delete appointment.")
+
+# ================================================================
+# EDIT FORM
+# ================================================================
+
+if "editing_appt_id" in st.session_state:
+    all_appointments = get_appointments()
+    appt_to_edit = next(
+        (a for a in all_appointments if a["id"] == st.session_state.editing_appt_id), None
+    )
+
+    if appt_to_edit:
+        st.divider()
+        patients = get_patients()
+        patient_map = {p["id"]: p["name"] for p in patients}
+        patient_name = patient_map.get(appt_to_edit["patient_id"], "Unknown")
+        
+        st.subheader(f"Editing Appointment for: {patient_name}")
+
+        with st.form("edit_appointment_form"):
+            col1, col2 = st.columns(2)
+            
+            doctor = col1.text_input("Doctor Name", value=appt_to_edit["doctor"])
+            status = col2.selectbox("Status", ["Scheduled", "Completed"], index=["Scheduled", "Completed"].index(appt_to_edit["status"]))
+            
+            col3, col4 = st.columns(2)
+            
+            # parse date string back to datetime.date
+            date_obj = datetime.datetime.strptime(appt_to_edit["date"], "%Y-%m-%d").date()
+            date = col3.date_input("Date", value=date_obj)
+            
+            times = [
+                "09:00 AM", "09:30 AM", "10:00 AM", "10:30 AM",
+                "11:00 AM", "11:30 AM", "12:00 PM", "12:30 PM",
+                "02:00 PM", "02:30 PM", "03:00 PM", "03:30 PM",
+                "04:00 PM", "04:30 PM", "05:00 PM",
+            ]
+            time = col4.selectbox("Time", times, index=times.index(appt_to_edit["time"]) if appt_to_edit["time"] in times else 0)
+            
+            symptoms = st.text_area("Symptoms", value=appt_to_edit.get("symptoms", ""))
+            
+            col5, col6 = st.columns(2)
+            save = col5.form_submit_button("Save Changes")
+            cancel = col6.form_submit_button("Cancel")
+            
+            if save:
+                if not doctor:
+                    st.error("Doctor name is required.")
+                else:
+                    response = update_appointment(st.session_state.editing_appt_id, {
+                        "doctor": doctor,
+                        "date": str(date),
+                        "time": time,
+                        "status": status,
+                        "symptoms": symptoms,
+                    })
+                    if response.status_code == 200:
+                        del st.session_state.editing_appt_id
+                        st.success("Appointment updated successfully!")
+                        st.rerun()
+                    else:
+                        try:
+                            error_msg = response.json().get("detail", f"Error: {response.text}")
+                        except Exception as e:
+                            error_msg = f"Failed to parse error: {e}. Response: {response.text}"
+                        st.error(error_msg)
+            
+            if cancel:
+                del st.session_state.editing_appt_id
+                st.rerun()

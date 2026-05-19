@@ -11,7 +11,6 @@ class PatientCreate(BaseModel):
     age: int
     gender: str
     phone: str
-    symptoms: Optional[str] = None 
 
 class PatientUpdate(BaseModel):
     # all fields optional for updates 
@@ -19,7 +18,6 @@ class PatientUpdate(BaseModel):
     age:      Optional[int] = None
     gender:   Optional[str] = None
     phone:    Optional[str] = None
-    symptoms: Optional[str] = None
 
 class PatientResponse(BaseModel):
     # data sent back 
@@ -43,12 +41,14 @@ class AppointmentCreate(BaseModel):
     doctor:     str
     date:       date
     time:       str
+    symptoms:   Optional[str] = None
     status:     Optional[str] = "Scheduled"
 
 class AppointmentUpdate(BaseModel):
     doctor: Optional[str] = None
     date:   Optional[date] = None
     time:   Optional[str]  = None
+    symptoms: Optional[str] = None
     status: Optional[str]  = None
 
 class AppointmentResponse(BaseModel):
@@ -57,6 +57,7 @@ class AppointmentResponse(BaseModel):
     doctor:     str
     date:       date
     time:       str
+    symptoms:   Optional[str] = None
     status:     str
     created_at: datetime
 

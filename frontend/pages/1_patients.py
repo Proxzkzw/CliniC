@@ -37,8 +37,7 @@ with st.expander("Add New Patient"):
         phone    = col4.text_input("Phone Number")
 
         # text_area is multi-line — better for symptoms which can be long
-        symptoms = st.text_area("Symptoms", placeholder="Enter symptoms here ")
-
+        
         # form_submit_button triggers the rerun only when clicked
         # returns True when clicked, False otherwise
         submitted = st.form_submit_button("Add Patient")
@@ -68,7 +67,6 @@ with st.expander("Add New Patient"):
                     "age": int(age_input),  # convert string to int here
                     "gender": gender,
                     "phone": phone,
-                    "symptoms": symptoms,
                 })
                 if response.status_code == 200:
                     st.success(f"Patient {name} added successfully!")
@@ -226,8 +224,6 @@ if "editing_id" in st.session_state:
 
             phone    = col4.text_input("Phone Number", value=patient_to_edit["phone"])
 
-            # .get() with empty string default in case symptoms is None in db
-            symptoms = st.text_area("Symptoms", value=patient_to_edit.get("symptoms", ""))
 
             col5, col6 = st.columns(2)
             save   = col5.form_submit_button("Save Changes")
@@ -247,7 +243,6 @@ if "editing_id" in st.session_state:
                         "age": age,
                         "gender": gender,
                         "phone": phone,
-                        "symptoms": symptoms,
                     })
                 if response.status_code == 200:
                     # remove editing_id from session_state

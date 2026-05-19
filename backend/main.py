@@ -34,10 +34,7 @@ def get_patients(search: str = None, db: Session = Depends(get_db)):
 
 @app.post("/patients", response_model=schemas.PatientResponse)
 def create_patient(patient: schemas.PatientCreate, db: Session = Depends(get_db)):
-    # check for duplicate patient by phone number
-    existing_patient = db.query(models.Patient).filter(models.Patient.phone == patient.phone).first()
-    if existing_patient:
-        raise HTTPException(status_code=400, detail="ERROR: another patient already exists with this phone number.")
+
 
     # convert pydantic schema to sqlalchemy model
     db_patient = models.Patient(**patient.model_dump())
@@ -54,13 +51,7 @@ def update_patient(patient_id: int, patient: schemas.PatientUpdate, db: Session 
     if not db_patient:
         raise HTTPException(status_code=404, detail="Patient not found")
         
-    if patient.phone:
-        existing_patient = db.query(models.Patient).filter(
-            models.Patient.phone == patient.phone, 
-            models.Patient.id != patient_id
-        ).first()
-        if existing_patient:
-            raise HTTPException(status_code=400, detail="ERROR: another patient already exists with this phone number.")
+
 
     # exclude_unset means only update fields the user actually sent
     # so if they only send name, age/gender/phone stay unchanged
@@ -96,6 +87,13 @@ def get_appointments(date: str = None, status: str = None, db: Session = Depends
 
 @app.post("/appointments", response_model=schemas.AppointmentResponse)
 def create_appointment(appointment: schemas.AppointmentCreate, db: Session = Depends(get_db)):
+    conflict = db.query(models.Appointment).filter(
+        models.Appointment.date == appointment.date,
+        models.Appointment.time == appointment.time
+    ).first()
+    if conflict:
+        raise HTTPException(status_code=400, detail="An appointment already exists at this date and time.")
+
     # check the patient actually exists before creating the appointment
     patient = db.query(models.Patient).filter(
         models.Patient.id == appointment.patient_id
@@ -116,6 +114,17 @@ def update_appointment(appointment_id: int, appointment: schemas.AppointmentUpda
     ).first()
     if not db_appointment:
         raise HTTPException(status_code=404, detail="Appointment not found")
+        
+    if appointment.date or appointment.time:
+        new_date = appointment.date if appointment.date else db_appointment.date
+        new_time = appointment.time if appointment.time else db_appointment.time
+        conflict = db.query(models.Appointment).filter(
+            models.Appointment.date == new_date,
+            models.Appointment.time == new_time,
+            models.Appointment.id != appointment_id
+        ).first()
+        if conflict:
+            raise HTTPException(status_code=400, detail="An appointment already exists at this date and time.")
     
     update_date = appointment.model_dump(exclude_unset=True, exclude_none=True)
     for key, value in appointment.model_dump(exclude_unset=True).items():

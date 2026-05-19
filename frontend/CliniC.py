@@ -84,6 +84,8 @@ else:
 
             # look up patient name from id
             c1.write(f"**{patient_map.get(appt['patient_id'], 'Unknown')}**")
+            if appt.get("symptoms"):
+                c1.caption(appt.get("symptoms"))
             c2.write(appt["doctor"])
             c3.write(appt["date"])
 

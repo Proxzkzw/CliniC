@@ -30,6 +30,7 @@ class Appointment(Base):
     time       = Column(String, nullable=False)
     # defaults to Scheduled when a new appointment is created
     status     = Column(String, default="Scheduled")
+    symptoms   = Column(String)
     created_at = Column(DateTime, default=datetime.utcnow)
 
     # links back to the Patient model
