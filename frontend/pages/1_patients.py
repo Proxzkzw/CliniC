@@ -80,7 +80,7 @@ with st.expander("Add New Patient"):
                     all_patients = get_patients()
                     shared_phone = sum(1 for p in all_patients if p["phone"] == phone) > 1
                     if shared_phone:
-                        st.session_state.form_message = {"type": "warning", "text": f"Patient {name} added successfully! Note: Another patient shares the phone number {phone}."}
+                        st.session_state.form_message = {"type": "warning", "text": f"Patient {name} added successfully! \nNote: Another patient shares the phone number {phone}."}
                     else:
                         st.session_state.form_message = {"type": "success", "text": f"Patient {name} added successfully!"}
                     st.rerun()

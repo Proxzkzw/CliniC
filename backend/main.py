@@ -89,10 +89,11 @@ def get_appointments(date: str = None, status: str = None, db: Session = Depends
 def create_appointment(appointment: schemas.AppointmentCreate, db: Session = Depends(get_db)):
     conflict = db.query(models.Appointment).filter(
         models.Appointment.date == appointment.date,
-        models.Appointment.time == appointment.time
+        models.Appointment.time == appointment.time,
+        models.Appointment.doctor == appointment.doctor
     ).first()
     if conflict:
-        raise HTTPException(status_code=400, detail="An appointment already exists at this date and time.")
+        raise HTTPException(status_code=400, detail="An appointment already exists for this doctor at this date and time.")
 
     # check the patient actually exists before creating the appointment
     patient = db.query(models.Patient).filter(
@@ -115,16 +116,18 @@ def update_appointment(appointment_id: int, appointment: schemas.AppointmentUpda
     if not db_appointment:
         raise HTTPException(status_code=404, detail="Appointment not found")
         
-    if appointment.date or appointment.time:
+    if appointment.date or appointment.time or appointment.doctor:
         new_date = appointment.date if appointment.date else db_appointment.date
         new_time = appointment.time if appointment.time else db_appointment.time
+        new_doctor = appointment.doctor if appointment.doctor else db_appointment.doctor
         conflict = db.query(models.Appointment).filter(
             models.Appointment.date == new_date,
             models.Appointment.time == new_time,
+            models.Appointment.doctor == new_doctor,
             models.Appointment.id != appointment_id
         ).first()
         if conflict:
-            raise HTTPException(status_code=400, detail="An appointment already exists at this date and time.")
+            raise HTTPException(status_code=400, detail="An appointment already exists for this doctor at this date and time.")
     
     update_date = appointment.model_dump(exclude_unset=True, exclude_none=True)
     for key, value in appointment.model_dump(exclude_unset=True).items():
