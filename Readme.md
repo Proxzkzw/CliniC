@@ -692,4 +692,5 @@ User clicks → Streamlit validates → api.py sends HTTP →
 FastAPI validates → SQLAlchemy writes → JSON response → 
 api.py returns → Streamlit reruns → UI updates
 ```
+```
 ![Request Lifecycle](images/request_lifecycle.svg)
