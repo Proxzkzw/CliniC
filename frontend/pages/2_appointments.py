@@ -252,3 +252,16 @@ if "editing_appt_id" in st.session_state:
             if cancel:
                 del st.session_state.editing_appt_id
                 st.rerun()
+
+        import streamlit.components.v1 as components
+        components.html(
+            """
+            <script>
+                var body = window.parent.document.querySelector(".main");
+                if (body) {
+                    body.scrollTo({top: body.scrollHeight, behavior: 'smooth'});
+                }
+            </script>
+            """,
+            height=0
+        )

@@ -263,6 +263,19 @@ if "editing_id" in st.session_state:
                 del st.session_state.editing_id
                 st.rerun()
 
+        import streamlit.components.v1 as components
+        components.html(
+            """
+            <script>
+                var body = window.parent.document.querySelector(".main");
+                if (body) {
+                    body.scrollTo({top: body.scrollHeight, behavior: 'smooth'});
+                }
+            </script>
+            """,
+            height=0
+        )
+
 # ================================================================
 # CSV EXPORT
 # converts the patient list to a CSV file
