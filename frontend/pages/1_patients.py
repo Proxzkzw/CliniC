@@ -5,6 +5,14 @@ from api import get_patients, create_patient, update_patient, delete_patient, ge
 st.title("Patients")
 st.divider()
 
+if "form_message" in st.session_state:
+    msg = st.session_state.form_message
+    if msg["type"] == "success":
+        st.success(msg["text"])
+    elif msg["type"] == "warning":
+        st.warning(msg["text"])
+    del st.session_state.form_message
+
 # SEARCH BAR
 # st.text_input returns whatever the user has typed
 search = st.text_input("Search patient:", placeholder="Name")
@@ -69,9 +77,12 @@ with st.expander("Add New Patient"):
                     "phone": phone,
                 })
                 if response.status_code == 200:
-                    st.success(f"Patient {name} added successfully!")
-                    # st.rerun() reruns the page so the table updates
-                    # and shows the newly added patient immediately
+                    all_patients = get_patients()
+                    shared_phone = sum(1 for p in all_patients if p["phone"] == phone) > 1
+                    if shared_phone:
+                        st.session_state.form_message = {"type": "warning", "text": f"Patient {name} added successfully! Note: Another patient shares the phone number {phone}."}
+                    else:
+                        st.session_state.form_message = {"type": "success", "text": f"Patient {name} added successfully!"}
                     st.rerun()
                 else:
                     try:
@@ -248,7 +259,14 @@ if "editing_id" in st.session_state:
                     # remove editing_id from session_state
                     # this makes the edit form disappear
                     del st.session_state.editing_id
-                    st.success("Patient updated successfully!")
+                    
+                    all_patients = get_patients()
+                    shared_phone = sum(1 for p in all_patients if p["phone"] == phone) > 1
+                    if shared_phone:
+                        st.session_state.form_message = {"type": "warning", "text": "Patient updated successfully! Note: Another patient shares this phone number."}
+                    else:
+                        st.session_state.form_message = {"type": "success", "text": "Patient updated successfully!"}
+                    
                     st.rerun()
                 else:
                     try:
