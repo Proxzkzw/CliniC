@@ -170,7 +170,7 @@ POST /appointments
 
 ## Overview
 
-CliniC is a three-tier web application. Each tier has a single responsibility and communicates only with the tier directly adjacent to it.
+This is a three-tier web application. Each tier has a single responsibility and communicates only with the tier directly adjacent to it.
 
 ```
 [ Streamlit Frontend ] → HTTP requests → [ FastAPI Backend ] → SQLAlchemy → [ SQLite Database ]
@@ -345,3 +345,352 @@ erDiagram
     string status
   }
 ```
+
+## Security Considerations
+
+### Current State
+This application was built as an internship project and is not production-ready 
+from a security standpoint. The following vulnerabilities exist in the current 
+implementation and would need to be addressed before deploying to a real clinic.
+
+---
+
+### What is missing and why it matters
+
+**1. No authentication**
+Anyone who can access the app can view, edit, and delete all patient data. 
+There is no login system — no usernames, no passwords, no sessions.
+
+In production you would add:
+- JWT (JSON Web Tokens) based authentication
+- Role based access control — doctors see patient records ➜ receptionists see appointments ➜ admins see everything
+- FastAPI has built in OAuth2 support via `fastapi.security`
+
+**2. No HTTPS**
+Data travels between the frontend and backend in plain text. 
+On a real network someone could intercept patient data in transit.
+
+In production you would add:
+- An SSL certificate (free via Let's Encrypt)
+- A reverse proxy like Nginx to handle HTTPS termination
+- Force all HTTP requests to redirect to HTTPS
+
+**3. CORS is too open**
+The backend currently allows requests from any origin:
+```python
+allow_origins=["*"]
+```
+This means any website on the internet could make API calls to your backend.
+
+In production you would restrict it to only your frontend's domain:
+```python
+allow_origins=["https://yourclinic.com"]
+```
+
+**4. No input sanitisation**
+While Pydantic validates data types, there is no sanitisation against 
+SQL injection or XSS attacks. SQLAlchemy's ORM provides some protection 
+against SQL injection by default since it uses parameterised queries — 
+but additional sanitisation would be needed for production.
+
+**5. Sensitive data not encrypted**
+Patient data including symptoms and phone numbers are stored as plain 
+text in the database. In a real medical application this data is 
+considered personally identifiable information (PII) and in many 
+countries is protected by law (GDPR in Europe, HIPAA in the US).
+
+In production you would:
+- Encrypt sensitive columns at rest
+- Hash any passwords using bcrypt
+- Ensure the database file itself has restricted file system permissions
+
+**6. No rate limiting**
+The API has no limit on how many requests can be made. 
+Someone could flood the server with thousands of requests and bring it down.
+
+In production you would add rate limiting using a library like `slowapi`.
+
+**7. .env file**
+The `.env` file is in `.gitignore` and never committed — this is correct. 
+If it were committed, the database URL and any future secrets like API keys 
+would be exposed publicly on GitHub.
+
+---
+
+### Summary
+
+| Vulnerability | Risk | Fix |
+|--------------|------|-----|
+| No authentication | Anyone can access patient data | JWT + role based access |
+| No HTTPS | Data intercepted in transit | SSL certificate + Nginx |
+| Open CORS | Any site can call the API | Restrict to frontend domain |
+| No rate limiting | Server can be flooded | slowapi middleware |
+| Plain text PII | Patient data exposed if DB leaked | Encrypt sensitive columns |
+| Open CORS | Any website can call your API | Restrict allow_origins |
+
+## Feature Roadmap
+
+---
+
+### Phase 1 — Production Ready
+
+**Authentication and access control**
+- Login system with username and password
+- JWT tokens for session management
+- Role based access — admin, doctor, receptionist
+- Each role sees only what they need
+
+**Data security**
+- HTTPS via SSL certificate
+- Encrypt sensitive patient fields at rest
+- Restrict CORS to frontend domain only
+- Rate limiting on all API endpoints
+
+**Database migration**
+- Switch from SQLite to PostgreSQL
+- Add Alembic for database migrations
+- Proper database backups on a schedule
+
+---
+
+### Phase 2 — Better Patient Management
+
+**Patient profiles**
+- Upload and store patient documents (test results, prescriptions)
+- Patient medical history timeline
+- Notes field per appointment
+
+**Search and filtering**
+- Filter patients by gender, age range
+- Filter appointments by doctor
+- Sort patients by name, date added
+
+**Duplicate detection**
+- Merge duplicate patient records
+
+---
+
+### Phase 3 — Appointment Improvements
+
+**Appointment reminders**
+- Email or SMS reminders to patients before appointments
+- Send via Twilio (SMS) or SendGrid (email)
+
+**Doctor availability**
+- Block out unavailable time slots per doctor
+
+
+**Appointment history**
+- Full audit trail of status changes
+- Who changed what and when
+
+**Calendar view**
+- Visual calendar showing appointments by day and doctor
+- Drag and drop rescheduling
+
+---
+
+### Phase 4 — Reporting and Analytics
+
+**Dashboard improvements**
+- Charts showing patient growth over time
+- Appointment completion rates by doctor
+- Busiest days and times
+
+**Export options**
+- Export appointments to CSV
+- Export reports as PDF
+- Printable daily schedule per doctor
+
+**Billing integration**
+- Basic invoice generation per appointment
+- Track payment status — paid, unpaid, pending
+
+---
+
+### Phase 5 — Scale and Infrastructure
+
+**API improvements**
+- Pagination for large patient lists
+- API versioning (`/v1/patients`, `/v2/patients`)
+- Webhook support for integrations with other systems
+
+**Deployment**
+- CI/CD pipeline with GitHub Actions
+- Automated tests before every deploy
+- Staging environment separate from production
+- Cloud deployment on AWS or GCP
+
+**Mobile app**
+- React Native or Flutter mobile app
+- Doctors can view their schedule on their phone
+- Push notifications for new appointments
+
+
+```
+## Request Lifecycle Of This Project
+
+---
+
+### Example — User adds a new patient
+
+**Step 1 — User fills in the form and clicks "Add Patient"**
+```
+Streamlit form submitted
+    → form_submit_button returns True
+    → Python validation runs (name, phone, age required)
+    → if validation passes, create_patient() called in api.py
+```
+
+**Step 2 — Frontend sends HTTP request to backend**
+```
+api.py calls:
+    requests.post("http://127.0.0.1:8000/patients", json={
+        "name": "Aisha Nair",
+        "age": 28,
+        "gender": "Female",
+        "phone": "9876543210",
+        "symptoms": "Fever, headache"
+    })
+
+HTTP request looks like:
+    POST /patients HTTP/1.1
+    Host: 127.0.0.1:8000
+    Content-Type: application/json
+    
+    {"name": "Aisha Nair", "age": 28, ...}
+```
+
+**Step 3 — FastAPI receives the request**
+```
+Request arrives at FastAPI
+    → CORS middleware checks if origin is allowed
+    → Router matches POST /patients to create_patient() function
+    → Pydantic validates request body against PatientCreate schema
+        → is name a string?        ✅
+        → is age an integer?       ✅
+        → is phone present?        ✅
+    → if validation fails → 422 Unprocessable Entity returned immediately
+    → if validation passes → route function runs
+```
+
+**Step 4 — FastAPI opens a database session**
+```
+Depends(get_db) runs automatically
+    → SessionLocal() creates a new database session
+    → session yielded to the route function as "db"
+    → session stays open for the duration of this request
+```
+
+**Step 5 — Business logic runs**
+```
+create_patient() function runs:
+    → checks if phone number already exists in database
+        → db.query(Patient).filter(Patient.phone == phone).first()
+        → if exists → raise HTTPException 400 "patient already exists"
+    → if not exists → create new Patient object
+        → models.Patient(**patient.model_dump())
+        → db.add(db_patient)
+        → db.commit()  ← writes to clinic.db
+        → db.refresh(db_patient)  ← pulls back id and created_at
+```
+
+**Step 6 — SQLAlchemy writes to SQLite**
+```
+db.commit() triggers SQLAlchemy to run:
+    INSERT INTO patients (name, age, gender, phone, symptoms, created_at)
+    VALUES ("Aisha Nair", 28, "Female", "9876543210", "Fever, headache", "2025-05-15 10:00:00")
+
+SQLite assigns:
+    id = 1 (auto increment)
+    created_at = current timestamp
+```
+
+**Step 7 — FastAPI serializes the response**
+```
+db_patient object passed through PatientResponse schema
+    → Pydantic converts SQLAlchemy object to dictionary
+    → only fields defined in PatientResponse are included
+    → response serialized to JSON:
+
+    {
+        "id": 1,
+        "name": "Aisha Nair",
+        "age": 28,
+        "gender": "Female",
+        "phone": "9876543210",
+        "symptoms": "Fever, headache",
+        "created_at": "2025-05-15T10:00:00"
+    }
+```
+
+**Step 8 — Response travels back to frontend**
+```
+FastAPI sends:
+    HTTP/1.1 200 OK
+    Content-Type: application/json
+    
+    {"id": 1, "name": "Aisha Nair", ...}
+
+api.py receives the response object
+    → returns it to 1_Patients.py
+```
+
+**Step 9 — Database session closes**
+```
+get_db() resumes after yield
+    → finally block runs
+    → db.close() called
+    → connection returned to the pool
+```
+
+**Step 10 — Streamlit updates the UI**
+```
+1_Patients.py checks response.status_code
+    → 200 → st.success("Patient Aisha Nair added successfully!")
+    → st.rerun() called
+    → entire page reruns from top to bottom
+    → get_patients() called again — fetches updated list from backend
+    → table renders with new patient included
+```
+
+---
+
+### What happens when something goes wrong
+
+**Validation error (missing name):**
+```
+Pydantic validation fails
+    → FastAPI returns 422 Unprocessable Entity
+    → frontend checks response.status_code != 200
+    → st.error("Something went wrong. Try again.")
+```
+
+**Duplicate phone number:**
+```
+create_patient() finds existing patient with same phone
+    → raise HTTPException(status_code=400, detail="patient already exists")
+    → FastAPI returns 400 Bad Request
+    → frontend reads response.json()["detail"]
+    → st.error("A patient with phone number ... already exists.")
+```
+
+**Backend not running:**
+```
+requests.post() raises ConnectionError
+    → frontend crashes with an unhandled exception
+    → in production you would wrap api.py calls in try/except
+      and show a friendly error message instead
+```
+
+---
+
+### Full lifecycle in one line
+
+```
+User clicks → Streamlit validates → api.py sends HTTP → 
+FastAPI validates → SQLAlchemy writes → JSON response → 
+api.py returns → Streamlit reruns → UI updates
+```
+```
+![Request Lifecycle](images/request_lifecycle.svg)
